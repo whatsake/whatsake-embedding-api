@@ -3,6 +3,7 @@ from PIL import Image
 import torch
 from transformers import AutoProcessor, AutoModel
 import io
+import os
 
 app = FastAPI()
 
@@ -18,8 +19,10 @@ def load_model():
 
     if processor is None or model is None:
         print("Loading model...")
-        processor = AutoProcessor.from_pretrained(MODEL_NAME)
-        model = AutoModel.from_pretrained(MODEL_NAME)
+        hf_token = os.getenv("HF_TOKEN")
+
+        processor = AutoProcessor.from_pretrained(MODEL_NAME, token=hf_token)
+        model = AutoModel.from_pretrained(MODEL_NAME, token=hf_token)
         model.to(device)
         model.eval()
         print("Model loaded ✅")
@@ -44,17 +47,12 @@ async def embed_image(file: UploadFile = File(...)):
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
         inputs = processor(images=image, return_tensors="pt")
-        inputs = {k: v.to(device) for k, v in inputs.items()}
+        pixel_values = inputs["pixel_values"].to(device)
 
         with torch.no_grad():
-            outputs = model(**inputs)
-
-            if hasattr(outputs, "image_embeds") and outputs.image_embeds is not None:
-                features = outputs.image_embeds
-            else:
-                features = model.get_image_features(**inputs)
-
-            features = features / features.norm(dim=-1, keepdim=True)
+            vision_outputs = model.vision_model(pixel_values=pixel_values)
+            pooled = vision_outputs.pooler_output
+            features = pooled / pooled.norm(dim=-1, keepdim=True)
 
         vector = features[0].cpu().tolist()
 
