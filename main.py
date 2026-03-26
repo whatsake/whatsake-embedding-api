@@ -43,13 +43,20 @@ async def embed_image(file: UploadFile = File(...)):
         image_bytes = await file.read()
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
 
-        inputs = processor(images=image, return_tensors="pt").to(device)
+        inputs = processor(images=image, return_tensors="pt")
+        inputs = {k: v.to(device) for k, v in inputs.items()}
 
         with torch.no_grad():
-            features = model.get_image_features(**inputs)
+            outputs = model(**inputs)
+
+            if hasattr(outputs, "image_embeds") and outputs.image_embeds is not None:
+                features = outputs.image_embeds
+            else:
+                features = model.get_image_features(**inputs)
+
             features = features / features.norm(dim=-1, keepdim=True)
 
-        vector = features.cpu().tolist()[0]
+        vector = features[0].cpu().tolist()
 
         return {
             "embedding": vector,
