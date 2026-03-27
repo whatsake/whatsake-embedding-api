@@ -4,3 +4,4 @@ transformers
 pillow
 python-multipart
 sentencepiece
+qdrant-client
