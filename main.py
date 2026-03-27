@@ -4,6 +4,7 @@ import torch
 from transformers import AutoProcessor, AutoModel
 import io
 import os
+import threading
 
 app = FastAPI()
 
@@ -12,20 +13,27 @@ device = "cpu"
 
 processor = None
 model = None
+model_lock = threading.Lock()
 
 
 def load_model():
     global processor, model
 
     if processor is None or model is None:
-        print("Loading model...")
-        hf_token = os.getenv("HF_TOKEN")
+        with model_lock:
+            if processor is None or model is None:
+                print("Loading model...")
+                hf_token = os.getenv("HF_TOKEN")
 
-        processor = AutoProcessor.from_pretrained(MODEL_NAME, token=hf_token)
-        model = AutoModel.from_pretrained(MODEL_NAME, token=hf_token)
-        model.to(device)
-        model.eval()
-        print("Model loaded ✅")
+                processor = AutoProcessor.from_pretrained(
+                    MODEL_NAME,
+                    token=hf_token,
+                    use_fast=False
+                )
+                model = AutoModel.from_pretrained(MODEL_NAME, token=hf_token)
+                model.to(device)
+                model.eval()
+                print("Model loaded ✅")
 
 
 @app.get("/")
