@@ -2,24 +2,16 @@ FROM python:3.10-slim
 
 WORKDIR /app
 
-# Install system deps (minimal)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python deps (CPU-only torch!)
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir \
-    fastapi \
-    uvicorn \
-    pillow \
-    python-multipart \
-    sentencepiece \
-    transformers \
-    torch --index-url https://download.pytorch.org/whl/cpu
 
-# Copy app
+RUN pip install --no-cache-dir --upgrade pip
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch
+
 COPY . .
 
 EXPOSE 8080
