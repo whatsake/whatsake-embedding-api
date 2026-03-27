@@ -79,23 +79,18 @@ def aggregate_results(results, final_limit=5):
     for r in results:
         payload = r.payload or {}
         sake_id = payload.get("sake_id")
-        gcs_path = payload.get("gcs_path")
         score = r.score
 
         if not sake_id:
             continue
 
-        grouped[sake_id].append({
-            "score": score,
-            "gcs_path": gcs_path
-        })
+        grouped[sake_id].append(score)
 
     ranked = []
 
-    for sake_id, matches in grouped.items():
-        matches = sorted(matches, key=lambda x: x["score"], reverse=True)
+    for sake_id, scores in grouped.items():
+        scores = sorted(scores, reverse=True)
 
-        scores = [m["score"] for m in matches]
         best_score = scores[0]
         top3_scores = scores[:3]
         mean_top3_score = sum(top3_scores) / len(top3_scores)
@@ -109,14 +104,10 @@ def aggregate_results(results, final_limit=5):
 
         ranked.append({
             "sake_id": sake_id,
-            "match_score": final_score,
-            "best_score": best_score,
-            "mean_top3_score": mean_top3_score,
-            "count_in_results": count_in_results,
-            "best_match_image": matches[0]["gcs_path"]
+            "score": round(final_score, 4)
         })
 
-    ranked = sorted(ranked, key=lambda x: x["match_score"], reverse=True)
+    ranked = sorted(ranked, key=lambda x: x["score"], reverse=True)
     return ranked[:final_limit], grouped
 
 
@@ -175,7 +166,7 @@ async def predict(file: UploadFile = File(...)):
 
         vector = embed_image(image)
 
-        raw_results, final_results, used_limit, unique_count = search_until_enough_unique(
+        _, final_results, _, _ = search_until_enough_unique(
             vector=vector,
             target_unique=5,
             initial_limit=20,
@@ -183,22 +174,9 @@ async def predict(file: UploadFile = File(...)):
             multiplier=2
         )
 
-        raw_matches = []
-        for r in raw_results:
-            payload = r.payload or {}
-            raw_matches.append({
-                "score": r.score,
-                "sake_id": payload.get("sake_id"),
-                "gcs_path": payload.get("gcs_path")
-            })
-
         return {
             "success": True,
-            "embedding_dim": len(vector),
-            "search_limit_used": used_limit,
-            "unique_sake_count": unique_count,
-            "top_5_unique_sakes": final_results,
-            "raw_matches": raw_matches
+            "results": final_results
         }
 
     except Exception as e:
